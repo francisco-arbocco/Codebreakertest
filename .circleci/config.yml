@@ -1,0 +1,768 @@
+version: 2.1
+
+# =============================================================================
+# ORBS – reusable packages from the CircleCI registry
+# =============================================================================
+orbs:
+  node: circleci/node@6.1
+  browser-tools: circleci/browser-tools@1.4
+
+# =============================================================================
+# PIPELINE PARAMETERS – trigger specific workflows via API or UI
+# =============================================================================
+parameters:
+  run_flaky:
+    type: boolean
+    default: false
+  run_nightly:
+    type: boolean
+    default: false
+  run_full_matrix:
+    type: boolean
+    default: false
+  node_version_override:
+    type: string
+    default: ""
+  skip_performance:
+    type: boolean
+    default: false
+
+# =============================================================================
+# EXECUTORS – reusable execution environments
+# =============================================================================
+executors:
+  node-20:
+    docker:
+      - image: cimg/node:20.12
+    working_directory: ~/project
+    resource_class: medium
+    environment:
+      NODE_ENV: test
+      CI: "true"
+
+  node-22:
+    docker:
+      - image: cimg/node:22.2
+    working_directory: ~/project
+    resource_class: medium
+    environment:
+      NODE_ENV: test
+      CI: "true"
+
+  node-18:
+    docker:
+      - image: cimg/node:18.20
+    working_directory: ~/project
+    resource_class: medium
+    environment:
+      NODE_ENV: test
+      CI: "true"
+
+  node-large:
+    docker:
+      - image: cimg/node:20.12
+    working_directory: ~/project
+    resource_class: large
+    environment:
+      NODE_ENV: test
+      CI: "true"
+
+# =============================================================================
+# COMMANDS – reusable step sequences
+# =============================================================================
+commands:
+  install_deps:
+    description: "Install dependencies with aggressive caching"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v2-npm-{{ arch }}-{{ .Branch }}-{{ checksum "package-lock.json" }}
+            - v2-npm-{{ arch }}-{{ .Branch }}-
+            - v2-npm-{{ arch }}-
+      - run:
+          name: Install dependencies
+          command: npm ci --no-audit --no-fund
+      - save_cache:
+          key: v2-npm-{{ arch }}-{{ .Branch }}-{{ checksum "package-lock.json" }}
+          paths:
+            - ~/.npm
+            - node_modules
+
+  persist_workspace:
+    description: "Persist workspace for downstream jobs"
+    steps:
+      - persist_to_workspace:
+          root: ~/project
+          paths:
+            - .
+
+  attach_workspace_step:
+    description: "Attach workspace from upstream job"
+    steps:
+      - attach_workspace:
+          at: ~/project
+
+  collect_test_results:
+    description: "Store test results and artifacts"
+    parameters:
+      artifact_prefix:
+        type: string
+        default: "test"
+    steps:
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+          destination: << parameters.artifact_prefix >>-results
+
+  fail_on_coverage_drop:
+    description: "Fail if coverage is below threshold"
+    parameters:
+      min_lines:
+        type: integer
+        default: 50
+    steps:
+      - run:
+          name: Check coverage threshold
+          command: |
+            if [ -f coverage/coverage-summary.json ]; then
+              LINES=$(node -e "const c=require('./coverage/coverage-summary.json'); console.log(c.total.lines.pct)")
+              echo "Line coverage: ${LINES}%"
+              if (( $(echo "$LINES < << parameters.min_lines >>" | bc -l) )); then
+                echo "FAIL: Coverage ${LINES}% is below << parameters.min_lines >>% threshold"
+                exit 1
+              fi
+            else
+              echo "No coverage report found – skipping threshold check"
+            fi
+
+# =============================================================================
+# JOBS
+# =============================================================================
+jobs:
+  # ---------------------------------------------------------------------------
+  # Setup – install deps and persist workspace for all downstream jobs
+  # ---------------------------------------------------------------------------
+  setup:
+    executor: node-20
+    steps:
+      - install_deps
+      - persist_workspace
+
+  # ---------------------------------------------------------------------------
+  # Static analysis: lint
+  # ---------------------------------------------------------------------------
+  lint:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: ESLint
+          command: npx eslint . --format json --output-file test-results/eslint.json || true
+      - run:
+          name: ESLint (human-readable, fail on error)
+          command: npx eslint .
+      - store_artifacts:
+          path: test-results/eslint.json
+          destination: lint-results
+
+  # ---------------------------------------------------------------------------
+  # Static analysis: TypeScript type checking
+  # ---------------------------------------------------------------------------
+  typecheck:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: TypeScript type check (strict)
+          command: npx tsc --noEmit
+      - run:
+          name: Report TypeScript version
+          command: npx tsc --version
+
+  # ---------------------------------------------------------------------------
+  # Unit tests – core game logic
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    executor: node-20
+    parallelism: 2
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Run unit tests (shard << pipeline.number >>)
+          command: |
+            # Collect test files and split across containers
+            TEST_FILES=$(circleci tests glob "src/components/game/__tests__/GameLogic*.test.ts" | circleci tests split --split-by=timings)
+            echo "Running: $TEST_FILES"
+            npx vitest run $TEST_FILES --reporter=junit --outputFile=test-results/junit.xml --reporter=json --outputFile=test-results/results.json --reporter=default
+      - collect_test_results:
+          artifact_prefix: unit
+
+  # ---------------------------------------------------------------------------
+  # Component tests – React components
+  # ---------------------------------------------------------------------------
+  component-tests:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Run component tests
+          command: |
+            npx vitest run src/components/game/__tests__/GuessInput*.test.tsx \
+              --reporter=junit --outputFile=test-results/junit.xml \
+              --reporter=json --outputFile=test-results/results.json \
+              --reporter=default
+      - collect_test_results:
+          artifact_prefix: component
+
+  # ---------------------------------------------------------------------------
+  # Integration tests – full game simulations
+  # ---------------------------------------------------------------------------
+  integration-tests:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Run integration tests
+          command: |
+            npx vitest run src/components/game/__tests__/GameSimulation.integration.test.ts \
+              --reporter=junit --outputFile=test-results/junit.xml \
+              --reporter=json --outputFile=test-results/results.json \
+              --reporter=default
+      - collect_test_results:
+          artifact_prefix: integration
+
+  # ---------------------------------------------------------------------------
+  # Performance / stress tests
+  # ---------------------------------------------------------------------------
+  performance-tests:
+    executor: node-large
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Run performance & stress tests
+          no_output_timeout: 5m
+          command: |
+            npx vitest run src/components/game/__tests__/GameStress.perf.test.ts \
+              --reporter=junit --outputFile=test-results/junit.xml \
+              --reporter=json --outputFile=test-results/results.json \
+              --reporter=default
+      - collect_test_results:
+          artifact_prefix: perf
+
+  # ---------------------------------------------------------------------------
+  # Full test suite with coverage
+  # ---------------------------------------------------------------------------
+  full-coverage:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Run all stable tests with coverage
+          command: |
+            npx vitest run \
+              --exclude '**/*.flaky.test.*' \
+              --coverage \
+              --reporter=junit --outputFile=test-results/junit.xml \
+              --reporter=json --outputFile=test-results/results.json \
+              --reporter=default
+      - fail_on_coverage_drop:
+          min_lines: 30
+      - collect_test_results:
+          artifact_prefix: coverage
+      - store_artifacts:
+          path: coverage
+          destination: coverage-report
+
+  # ---------------------------------------------------------------------------
+  # Flaky tests – isolated run with retry
+  # ---------------------------------------------------------------------------
+  flaky-tests:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: "Run flaky tests (attempt 1/3)"
+          command: |
+            RUN_FLAKY=true npx vitest run src/components/game/__tests__/*.flaky.test.* \
+              --reporter=junit --outputFile=test-results/junit-attempt1.xml \
+              --reporter=default || echo "Attempt 1 had failures"
+      - run:
+          name: "Retry flaky tests (attempt 2/3)"
+          command: |
+            RUN_FLAKY=true npx vitest run src/components/game/__tests__/*.flaky.test.* \
+              --reporter=junit --outputFile=test-results/junit-attempt2.xml \
+              --reporter=default || echo "Attempt 2 had failures"
+      - run:
+          name: "Retry flaky tests (attempt 3/3, allow failure)"
+          command: |
+            RUN_FLAKY=true npx vitest run src/components/game/__tests__/*.flaky.test.* \
+              --reporter=junit --outputFile=test-results/junit-attempt3.xml \
+              --reporter=default || true
+      - run:
+          name: Summarize flaky test results
+          when: always
+          command: |
+            echo "=== Flaky Test Summary ==="
+            for f in test-results/junit-attempt*.xml; do
+              echo "--- $(basename $f) ---"
+              grep -c 'testcase' "$f" 2>/dev/null || echo "(no results)"
+              grep 'failure' "$f" 2>/dev/null | head -5 || echo "(no failures)"
+            done
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+          destination: flaky-results
+
+  # ---------------------------------------------------------------------------
+  # Production build
+  # ---------------------------------------------------------------------------
+  build-production:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Build production bundle
+          command: npm run build
+      - run:
+          name: Verify build output exists
+          command: |
+            if [ ! -d dist ]; then
+              echo "FAIL: dist/ directory not found after build"
+              exit 1
+            fi
+            echo "Build artifacts:"
+            ls -lhR dist/ | head -40
+      - persist_to_workspace:
+          root: ~/project
+          paths:
+            - dist
+      - store_artifacts:
+          path: dist
+          destination: production-build
+
+  # ---------------------------------------------------------------------------
+  # Development build (verify dev mode doesn't break)
+  # ---------------------------------------------------------------------------
+  build-development:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Build development bundle
+          command: npm run build:dev
+      - run:
+          name: Verify dev build
+          command: |
+            if [ ! -d dist ]; then
+              echo "FAIL: dist/ directory not found after dev build"
+              exit 1
+            fi
+            echo "Dev build size:"
+            du -sh dist/
+
+  # ---------------------------------------------------------------------------
+  # Bundle analysis – track bundle size regressions
+  # ---------------------------------------------------------------------------
+  bundle-analysis:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Analyze bundle sizes
+          command: |
+            # Build and report sizes
+            npm run build
+            echo "=== Bundle Size Report ==="
+            echo ""
+            total=0
+            for f in dist/assets/*.js; do
+              size=$(wc -c < "$f")
+              human=$(du -h "$f" | cut -f1)
+              echo "  JS:  $human  $(basename $f)"
+              total=$((total + size))
+            done
+            for f in dist/assets/*.css; do
+              size=$(wc -c < "$f")
+              human=$(du -h "$f" | cut -f1)
+              echo "  CSS: $human  $(basename $f)"
+              total=$((total + size))
+            done
+            echo ""
+            echo "Total asset size: $((total / 1024)) KB"
+            echo ""
+            # Fail if total JS exceeds 2MB (guard against bloat)
+            js_total=0
+            for f in dist/assets/*.js; do
+              js_total=$((js_total + $(wc -c < "$f")))
+            done
+            if [ "$js_total" -gt 2097152 ]; then
+              echo "WARNING: JS bundle exceeds 2MB ($((js_total / 1024)) KB)"
+              exit 1
+            fi
+            echo "JS bundle size OK: $((js_total / 1024)) KB (< 2048 KB limit)"
+      - store_artifacts:
+          path: dist
+          destination: bundle-analysis
+
+  # ---------------------------------------------------------------------------
+  # Security audit
+  # ---------------------------------------------------------------------------
+  security-audit:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: npm audit (critical + high)
+          command: |
+            npm audit --audit-level=critical --json > test-results/audit.json 2>&1 || true
+            npm audit --audit-level=critical 2>&1 || echo "Audit found vulnerabilities (see artifact)"
+      - run:
+          name: Check for known vulnerable packages
+          command: |
+            echo "=== Dependency Health ==="
+            npm outdated --json > test-results/outdated.json 2>&1 || true
+            npm outdated 2>&1 || echo "Some packages are outdated"
+      - store_artifacts:
+          path: test-results/audit.json
+          destination: security/audit.json
+      - store_artifacts:
+          path: test-results/outdated.json
+          destination: security/outdated.json
+
+  # ---------------------------------------------------------------------------
+  # Build verification – smoke test the built artifacts
+  # ---------------------------------------------------------------------------
+  build-verification:
+    executor: node-20
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Verify index.html references built assets
+          command: |
+            if [ ! -f dist/index.html ]; then
+              echo "FAIL: dist/index.html not found"
+              exit 1
+            fi
+            echo "Checking index.html for asset references..."
+            grep -q 'src=' dist/index.html && echo "✓ Script tag found"
+            grep -q '.js' dist/index.html && echo "✓ JS reference found"
+            echo "All verification checks passed"
+      - run:
+          name: Verify no source maps leaked into production
+          command: |
+            MAP_COUNT=$(find dist -name '*.map' 2>/dev/null | wc -l)
+            echo "Source map files found: $MAP_COUNT"
+            if [ "$MAP_COUNT" -gt 0 ]; then
+              echo "WARNING: Source maps present in production build"
+              find dist -name '*.map'
+            fi
+      - run:
+          name: Verify critical assets exist
+          command: |
+            echo "Checking critical asset types..."
+            JS_COUNT=$(find dist/assets -name '*.js' | wc -l)
+            CSS_COUNT=$(find dist/assets -name '*.css' | wc -l)
+            echo "  JS files:  $JS_COUNT"
+            echo "  CSS files: $CSS_COUNT"
+            if [ "$JS_COUNT" -eq 0 ]; then
+              echo "FAIL: No JS files in build"
+              exit 1
+            fi
+            if [ "$CSS_COUNT" -eq 0 ]; then
+              echo "FAIL: No CSS files in build"
+              exit 1
+            fi
+            echo "All critical assets present"
+
+  # ---------------------------------------------------------------------------
+  # Cross-version test (parameterized via matrix)
+  # ---------------------------------------------------------------------------
+  cross-version-test:
+    parameters:
+      node_executor:
+        type: executor
+    executor: << parameters.node_executor >>
+    steps:
+      - install_deps
+      - run:
+          name: Report Node/npm versions
+          command: |
+            echo "Node: $(node --version)"
+            echo "npm:  $(npm --version)"
+      - run:
+          name: Run full stable test suite
+          command: |
+            npx vitest run \
+              --exclude '**/*.flaky.test.*' \
+              --reporter=junit --outputFile=test-results/junit.xml \
+              --reporter=default
+      - collect_test_results:
+          artifact_prefix: cross-version
+      - run:
+          name: Build check
+          command: npm run build
+
+  # ---------------------------------------------------------------------------
+  # Dependency install timing benchmark
+  # ---------------------------------------------------------------------------
+  install-benchmark:
+    executor: node-20
+    steps:
+      - checkout
+      - run:
+          name: "Benchmark: cold npm ci"
+          command: |
+            START=$(date +%s%N)
+            npm ci --no-audit --no-fund
+            END=$(date +%s%N)
+            ELAPSED=$(( (END - START) / 1000000 ))
+            echo "Cold install time: ${ELAPSED}ms"
+            if [ "$ELAPSED" -gt 120000 ]; then
+              echo "WARNING: Install took over 2 minutes"
+            fi
+
+  # ---------------------------------------------------------------------------
+  # Manual approval gate (for release workflow)
+  # ---------------------------------------------------------------------------
+  approve-release:
+    executor: node-20
+    steps:
+      - run:
+          name: Release gate passed
+          command: echo "Release approved – proceeding with post-release checks"
+
+# =============================================================================
+# WORKFLOWS
+# =============================================================================
+workflows:
+  # ---------------------------------------------------------------------------
+  # MAIN CI – runs on every push & PR
+  # Fan-out from setup → parallel jobs → fan-in to build + verify
+  # ---------------------------------------------------------------------------
+  ci:
+    when:
+      and:
+        - not: << pipeline.parameters.run_flaky >>
+        - not: << pipeline.parameters.run_nightly >>
+    jobs:
+      # Layer 1: Install & cache
+      - setup:
+          filters:
+            branches:
+              ignore: /^dependabot\/.*/
+
+      # Layer 2: Static analysis (parallel)
+      - lint:
+          requires: [setup]
+      - typecheck:
+          requires: [setup]
+      - security-audit:
+          requires: [setup]
+
+      # Layer 3: Tests (parallel, all depend on setup)
+      - unit-tests:
+          requires: [setup]
+      - component-tests:
+          requires: [setup]
+      - integration-tests:
+          requires: [setup]
+      - performance-tests:
+          requires: [setup]
+          filters:
+            branches:
+              only:
+                - main
+                - /^release\/.*/
+                - /^perf\/.*/
+
+      # Layer 4: Full coverage (depends on individual test suites passing)
+      - full-coverage:
+          requires:
+            - unit-tests
+            - component-tests
+            - integration-tests
+
+      # Layer 5: Build (depends on static analysis + tests passing)
+      - build-production:
+          requires:
+            - lint
+            - typecheck
+            - full-coverage
+
+      - build-development:
+          requires: [setup]
+
+      # Layer 6: Post-build verification (depends on production build)
+      - build-verification:
+          requires: [build-production]
+
+      - bundle-analysis:
+          requires: [build-production]
+
+  # ---------------------------------------------------------------------------
+  # FLAKY INVESTIGATION – triggered via pipeline parameter
+  # ---------------------------------------------------------------------------
+  flaky_investigation:
+    when: << pipeline.parameters.run_flaky >>
+    jobs:
+      - setup
+      - flaky-tests:
+          requires: [setup]
+
+  # ---------------------------------------------------------------------------
+  # NIGHTLY – comprehensive testing including cross-version matrix
+  # Triggered by scheduled pipeline or parameter
+  # ---------------------------------------------------------------------------
+  nightly:
+    when: << pipeline.parameters.run_nightly >>
+    jobs:
+      # Full matrix across Node versions
+      - cross-version-test:
+          name: test-node-18
+          node_executor: node-18
+      - cross-version-test:
+          name: test-node-20
+          node_executor: node-20
+      - cross-version-test:
+          name: test-node-22
+          node_executor: node-22
+
+      # Install benchmark
+      - install-benchmark
+
+      # Full CI pipeline
+      - setup
+      - lint:
+          requires: [setup]
+      - typecheck:
+          requires: [setup]
+      - security-audit:
+          requires: [setup]
+      - unit-tests:
+          requires: [setup]
+      - component-tests:
+          requires: [setup]
+      - integration-tests:
+          requires: [setup]
+      - performance-tests:
+          requires: [setup]
+      - full-coverage:
+          requires:
+            - unit-tests
+            - component-tests
+            - integration-tests
+      - build-production:
+          requires:
+            - lint
+            - typecheck
+            - full-coverage
+      - build-verification:
+          requires: [build-production]
+      - bundle-analysis:
+          requires: [build-production]
+
+      # Flaky tests in nightly too
+      - flaky-tests:
+          requires: [setup]
+
+  # ---------------------------------------------------------------------------
+  # RELEASE – tag-triggered with manual approval gate
+  # ---------------------------------------------------------------------------
+  release:
+    jobs:
+      - setup:
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+      - lint:
+          requires: [setup]
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+      - typecheck:
+          requires: [setup]
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+      - full-coverage:
+          requires: [setup]
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+      - security-audit:
+          requires: [setup]
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+      - build-production:
+          requires:
+            - lint
+            - typecheck
+            - full-coverage
+            - security-audit
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+      - build-verification:
+          requires: [build-production]
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+      - bundle-analysis:
+          requires: [build-production]
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+      # Manual approval before marking release complete
+      - hold-for-approval:
+          type: approval
+          requires:
+            - build-verification
+            - bundle-analysis
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+      - approve-release:
+          requires: [hold-for-approval]
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
+
+  # ---------------------------------------------------------------------------
+  # FULL MATRIX – cross-version testing on demand
+  # ---------------------------------------------------------------------------
+  full_matrix:
+    when: << pipeline.parameters.run_full_matrix >>
+    jobs:
+      - cross-version-test:
+          name: matrix-node-18
+          node_executor: node-18
+      - cross-version-test:
+          name: matrix-node-20
+          node_executor: node-20
+      - cross-version-test:
+          name: matrix-node-22
+          node_executor: node-22
