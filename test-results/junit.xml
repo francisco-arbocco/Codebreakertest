@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.039">
+    <testsuite name="src/components/game/__tests__/IntervalTiming.flaky.test.ts" timestamp="2025-08-14T16:01:30.069Z" hostname="aa755a444f91" tests="1" failures="0" errors="0" skipped="0" time="0.043327201">
+        <testcase classname="src/components/game/__tests__/IntervalTiming.flaky.test.ts" name="INTENTIONALLY FLAKY: Interval timing &gt; tight timing threshold (often fails)" time="0.041932804">
+        </testcase>
+    </testsuite>
+</testsuites>
