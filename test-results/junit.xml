@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="1" failures="0" errors="0" time="0.952">
+    <testsuite name="src/components/game/__tests__/RandomJitter.flaky.test.ts" timestamp="2025-08-14T16:06:54.175Z" hostname="aa755a444f91" tests="1" failures="0" errors="0" skipped="0" time="0.00289283">
+        <testcase classname="src/components/game/__tests__/RandomJitter.flaky.test.ts" name="INTENTIONALLY FLAKY: Random jitter &gt; may randomly fail (~50%)" time="0.001833003">
+        </testcase>
+    </testsuite>
+</testsuites>
