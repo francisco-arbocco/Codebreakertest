@@ -1,0 +1,75 @@
+version: 2.1
+
+parameters:
+  run_flaky:
+    type: boolean
+    default: false
+
+executors:
+  node:
+    docker:
+      - image: cimg/node:20.12
+    working_directory: ~/project
+
+commands:
+  install_deps:
+    description: "Install dependencies with caching"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-npm-{{ arch }}-{{ .Branch }}-{{ checksum "package-lock.json" }}
+            - v1-npm-{{ arch }}-
+      - run:
+          name: Install dependencies
+          command: |
+            if [ -f package-lock.json ]; then
+              npm ci --no-audit --no-fund
+            else
+              npm install --no-audit --no-fund
+            fi
+      - save_cache:
+          key: v1-npm-{{ arch }}-{{ .Branch }}-{{ checksum "package-lock.json" }}
+          paths:
+            - ~/.npm
+            - ~/.cache
+
+jobs:
+  test:
+    executor: node
+    steps:
+      - install_deps
+      - run:
+          name: Run unit/integration tests with coverage
+          command: npm run test:ci
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+          destination: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage
+
+  flaky-tests:
+    executor: node
+    steps:
+      - install_deps
+      - run:
+          name: Run intentionally flaky tests (allow failures)
+          command: RUN_FLAKY=true npm run test:flaky || true
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+          destination: flaky-test-results
+
+workflows:
+  build_and_test:
+    jobs:
+      - test
+
+  flaky_tests:
+    when: << pipeline.parameters.run_flaky >>
+    jobs:
+      - flaky-tests
