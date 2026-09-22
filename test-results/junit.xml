@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="1" failures="0" errors="0" time="0.928">
+    <testsuite name="src/components/game/__tests__/AsyncRace.flaky.test.ts" timestamp="2025-08-14T15:56:42.417Z" hostname="aa755a444f91" tests="1" failures="0" errors="0" skipped="0" time="0.007371709">
+        <testcase classname="src/components/game/__tests__/AsyncRace.flaky.test.ts" name="INTENTIONALLY FLAKY: Async race &gt; race order is non-deterministic (expects A but B may win)" time="0.006342763">
+        </testcase>
+    </testsuite>
+</testsuites>
