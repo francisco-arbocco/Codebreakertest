@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="107" failures="0" errors="0" time="7.846">
+    <testsuite name="src/components/game/__tests__/AsyncRace.flaky.test.ts" timestamp="2026-03-27T18:05:33.189Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.006934778">
+        <testcase classname="src/components/game/__tests__/AsyncRace.flaky.test.ts" name="INTENTIONALLY FLAKY: Async race &gt; race order is non-deterministic (expects A but B may win)" time="0.006082708">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/CPUHeater.flaky.test.ts" timestamp="2026-03-27T18:05:33.190Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.004932615">
+        <testcase classname="src/components/game/__tests__/CPUHeater.flaky.test.ts" name="INTENTIONALLY FLAKY: CPU heater &gt; heavy loop should still be fast (may fail on busy CI)" time="0.003672592">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/ConcurrentState.flaky.test.ts" timestamp="2026-03-27T18:05:33.190Z" hostname="ip-10-0-61-105" tests="3" failures="0" errors="0" skipped="0" time="0.009505417">
+        <testcase classname="src/components/game/__tests__/ConcurrentState.flaky.test.ts" name="INTENTIONALLY FLAKY: Concurrent shared state &gt; increment A" time="0.003320186">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/ConcurrentState.flaky.test.ts" name="INTENTIONALLY FLAKY: Concurrent shared state &gt; increment B" time="0.008470249">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/ConcurrentState.flaky.test.ts" name="INTENTIONALLY FLAKY: Concurrent shared state &gt; increment C" time="0.00850784">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/DateEdge.flaky.test.ts" timestamp="2026-03-27T18:05:33.191Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.002881994">
+        <testcase classname="src/components/game/__tests__/DateEdge.flaky.test.ts" name="INTENTIONALLY FLAKY: Time edge &gt; fails when seconds % 5 === 0 (~20%)" time="0.001455767">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/Entropy.flaky.test.ts" timestamp="2026-03-27T18:05:33.191Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.004232159">
+        <testcase classname="src/components/game/__tests__/Entropy.flaky.test.ts" name="INTENTIONALLY FLAKY: Entropy equality &gt; expects a specific ordering after shuffle (rare)" time="0.002951987">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/GameLogic.extensive.test.ts" timestamp="2026-03-27T18:05:33.191Z" hostname="ip-10-0-61-105" tests="37" failures="0" errors="0" skipped="0" time="0.575129904">
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; rejects empty string" time="0.001351758">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; rejects single digit" time="0.000370125">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; rejects 3 digits" time="0.000251898">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; rejects 5 digits even if unique" time="0.000200745">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; accepts all-zero-free codes (no leading zero)" time="0.000198492">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; accepts codes with leading zero" time="0.000228151">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; rejects duplicate digits in various positions" time="0.00047642">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; rejects non-numeric characters" time="0.000303126">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; rejects strings with special unicode digits" time="0.000331666">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; validates every permutation start (0-9 as first digit)" time="0.00053365">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="validateNumber – edge cases &gt; all 4-same-digit strings are invalid" time="0.000426487">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; perfect match" time="0.003245899">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; complete reversal" time="0.000305837">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; no overlap at all" time="0.000276208">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; 1 excellent, 0 good" time="0.000229853">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; 0 excellent, 1 good" time="0.000309746">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; 2 excellent, 1 good" time="0.003389078">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; symmetry: swapping guess and target may change result" time="0.000193173">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; excellent + good never exceeds 4" time="0.01429527">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; self-check always returns 4 excellent" time="0.00529258">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; position matters: same digits different order" time="0.000246195">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="checkGuess – comprehensive &gt; handles codes with zero" time="0.000216625">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateRandomNumber – statistical &gt; always returns 4-character string" time="0.02062199">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateRandomNumber – statistical &gt; all digits are unique in every generation" time="0.005064297">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateRandomNumber – statistical &gt; only contains numeric characters" time="0.004584305">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateRandomNumber – statistical &gt; produces variety (not always the same number)" time="0.000533689">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateRandomNumber – statistical &gt; all 10 digits appear across many generations" time="0.00664085">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateMachineGuess – AI strategy &gt; returns a valid 4-digit unique number with no history" time="0.00593108">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateMachineGuess – AI strategy &gt; returns valid guess with previous guesses" time="0.064128115">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateMachineGuess – AI strategy &gt; hard mode converges better than novice over many rounds" time="0.321820154">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateMachineGuess – AI strategy &gt; never crashes with adversarial history" time="0.005492938">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateMachineGuess – AI strategy &gt; handles contradictory feedback gracefully" time="0.004486515">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="generateMachineGuess – AI strategy &gt; with long history, still returns valid guess" time="0.003714527">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="Performance &gt; generateRandomNumber is fast (1000 calls &lt; 100ms)" time="0.001221186">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="Performance &gt; checkGuess is fast (10000 calls &lt; 100ms)" time="0.042242436">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="Performance &gt; validateNumber is fast (10000 calls &lt; 50ms)" time="0.028417066">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.extensive.test.ts" name="Performance &gt; generateMachineGuess completes within 5s even with history" time="0.024930361">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/GameLogic.test.ts" timestamp="2026-03-27T18:05:33.197Z" hostname="ip-10-0-61-105" tests="3" failures="0" errors="0" skipped="0" time="0.006963834">
+        <testcase classname="src/components/game/__tests__/GameLogic.test.ts" name="GameLogic &gt; validateNumber validates 4 unique digits" time="0.002076535">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.test.ts" name="GameLogic &gt; checkGuess calculates excellent and good" time="0.001340277">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameLogic.test.ts" name="GameLogic &gt; generateRandomNumber returns 4 unique digits" time="0.001318986">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/GameSimulation.integration.test.ts" timestamp="2026-03-27T18:05:33.197Z" hostname="ip-10-0-61-105" tests="15" failures="0" errors="0" skipped="0" time="0.651731557">
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Full game simulation – AI vs fixed target &gt; AI (hard) attempts to crack code 1234" time="0.047312566">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Full game simulation – AI vs fixed target &gt; AI (hard) attempts to crack code 0579" time="0.010687288">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Full game simulation – AI vs fixed target &gt; AI (hard) attempts to crack code 9876" time="0.019437715">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Full game simulation – AI vs fixed target &gt; AI (hard) attempts to crack code 3071" time="0.012972671">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Full game simulation – AI vs fixed target &gt; AI (hard) attempts to crack code 8024" time="0.010777971">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Full game simulation – AI vs fixed target &gt; AI (novice) always produces valid guesses over 50-round game" time="0.031718673">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Full game simulation – mutual game (player vs AI) &gt; simulates a turn-based game where both sides guess" time="0.020255006">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Game invariants across many random games &gt; checkGuess feedback is always consistent with the target" time="0.010382854">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Game invariants across many random games &gt; feedback symmetry: shared digits count is symmetric" time="0.002519193">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Difficulty scaling validation &gt; hard mode solves codes faster on average than novice" time="0.482347132">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Edge cases – boundary codes &gt; boundary code 0123 is valid and self-check works" time="0.000617301">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Edge cases – boundary codes &gt; boundary code 9876 is valid and self-check works" time="0.000132388">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Edge cases – boundary codes &gt; boundary code 0987 is valid and self-check works" time="0.000102416">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Edge cases – boundary codes &gt; boundary code 1098 is valid and self-check works" time="0.000092842">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameSimulation.integration.test.ts" name="Edge cases – boundary codes &gt; boundary code 5049 is valid and self-check works" time="0.000194798">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/GameStress.perf.test.ts" timestamp="2026-03-27T18:05:33.199Z" hostname="ip-10-0-61-105" tests="7" failures="0" errors="0" skipped="0" time="2.334797445">
+        <testcase classname="src/components/game/__tests__/GameStress.perf.test.ts" name="Stress – generateRandomNumber bulk generation &gt; generate 5000 numbers – all valid, decent uniqueness" time="0.319435271">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameStress.perf.test.ts" name="Stress – checkGuess exhaustive pair sampling &gt; check 50,000 random pairs without error" time="0.926547812">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameStress.perf.test.ts" name="Stress – AI solver under load &gt; run 30 full AI games (hard) – all complete within limits" time="0.324120769">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameStress.perf.test.ts" name="Stress – AI solver under load &gt; run 30 full AI games (novice) – validate all guesses" time="0.620759838">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameStress.perf.test.ts" name="Stress – validation throughput &gt; validate 100,000 inputs (mix of valid and invalid)" time="0.136757237">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameStress.perf.test.ts" name="Stress – memory pressure (large history) &gt; AI handles 100-entry history without OOM or timeout" time="0.003878803">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GameStress.perf.test.ts" name="Determinism – seeded random sanity check &gt; same seed produces same results (mock Math.random)" time="0.001075403">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/GuessInput.extensive.test.tsx" timestamp="2026-03-27T18:05:33.201Z" hostname="ip-10-0-61-105" tests="16" failures="0" errors="0" skipped="0" time="0.834557289">
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – rendering &gt; renders all 10 number buttons (0-9)" time="0.211437847">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – rendering &gt; renders Clear button" time="0.008462675">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – rendering &gt; renders Submit Guess button" time="0.005813867">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – rendering &gt; shows 4 digit placeholders" time="0.006560267">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – digit entry &gt; entering 4 unique digits calls onGuessChange with full code" time="0.086607674">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – digit entry &gt; prevents selecting a digit already entered" time="0.036714413">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – digit entry &gt; does not call onGuessChange with more than 4 digits" time="0.082923361">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – clear behaviour &gt; clear after partial entry resets to empty" time="0.032402713">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – clear behaviour &gt; clear on empty input does not crash" time="0.004953342">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – clear behaviour &gt; can enter new digits after clearing" time="0.075535253">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – submit behaviour &gt; submit is disabled when fewer than 4 digits entered" time="0.008062679">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – submit behaviour &gt; submit calls onSubmitGuess when 4 digits entered" time="0.068500126">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – submit behaviour &gt; submitting resets the input" time="0.072178878">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – scratched numbers &gt; scratched numbers are disabled" time="0.04457982">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – scratched numbers &gt; all numbers scratched leaves no selectable digits" time="0.053277952">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.extensive.test.tsx" name="GuessInput – position selection &gt; clicking digit boxes allows position-based entry" time="0.033346791">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/GuessInput.test.tsx" timestamp="2026-03-27T18:05:33.203Z" hostname="ip-10-0-61-105" tests="3" failures="0" errors="0" skipped="0" time="0.271409317">
+        <testcase classname="src/components/game/__tests__/GuessInput.test.tsx" name="GuessInput &gt; renders number buttons and submits a 4-digit guess" time="0.203303902">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.test.tsx" name="GuessInput &gt; prevents duplicate digits" time="0.047539013">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/GuessInput.test.tsx" name="GuessInput &gt; clear resets input" time="0.019156767">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/Heisenbug.flaky.test.ts" timestamp="2026-03-27T18:05:33.203Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.002830354">
+        <testcase classname="src/components/game/__tests__/Heisenbug.flaky.test.ts" name="INTENTIONALLY FLAKY: heisenbug-like &gt; rare ordering assumption breaks sometimes" time="0.001409023">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/IntervalTiming.flaky.test.ts" timestamp="2026-03-27T18:05:33.204Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.034442518">
+        <testcase classname="src/components/game/__tests__/IntervalTiming.flaky.test.ts" name="INTENTIONALLY FLAKY: Interval timing &gt; tight timing threshold (often fails)" time="0.033022747">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/Networkish.flaky.test.ts" timestamp="2026-03-27T18:05:33.204Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.015077069">
+        <testcase classname="src/components/game/__tests__/Networkish.flaky.test.ts" name="INTENTIONALLY FLAKY: network-ish timeout &gt; occasionally times out depending on jitter" time="0.014052809">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/NumberGame.flaky.test.tsx" timestamp="2026-03-27T18:05:33.204Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.002904586">
+        <testcase classname="src/components/game/__tests__/NumberGame.flaky.test.tsx" name="INTENTIONALLY FLAKY: Random failure &gt; may randomly fail to simulate flakiness" time="0.001495812">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/Probabilistic15.flaky.test.ts" timestamp="2026-03-27T18:05:33.205Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.002835908">
+        <testcase classname="src/components/game/__tests__/Probabilistic15.flaky.test.ts" name="INTENTIONALLY FLAKY: 15% probability &gt; fails about 15% of the time" time="0.001458629">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/Probability10.flaky.test.ts" timestamp="2026-03-27T18:05:33.205Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.001810874">
+        <testcase classname="src/components/game/__tests__/Probability10.flaky.test.ts" name="INTENTIONALLY FLAKY: 10% probability &gt; fails about 10% of the time" time="0.000957523">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/RaceLow.flaky.test.ts" timestamp="2026-03-27T18:05:33.205Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.009143275">
+        <testcase classname="src/components/game/__tests__/RaceLow.flaky.test.ts" name="INTENTIONALLY FLAKY: low-probability race &gt; A is expected to win, but B sometimes does" time="0.007713732">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/RandomJitter.flaky.test.ts" timestamp="2026-03-27T18:05:33.205Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.002668261">
+        <testcase classname="src/components/game/__tests__/RandomJitter.flaky.test.ts" name="INTENTIONALLY FLAKY: Random jitter &gt; may randomly fail (~50%)" time="0.001320539">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/Timing.flaky.test.ts" timestamp="2026-03-27T18:05:33.206Z" hostname="ip-10-0-61-105" tests="1" failures="0" errors="0" skipped="0" time="0.027709763">
+        <testcase classname="src/components/game/__tests__/Timing.flaky.test.ts" name="INTENTIONALLY FLAKY: Timing dependent &gt; sometimes times out or races" time="0.026858008">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/game/__tests__/useGameStats.test.ts" timestamp="2026-03-27T18:05:33.207Z" hostname="ip-10-0-61-105" tests="10" failures="0" errors="0" skipped="0" time="0.050877074">
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; starts with empty stats" time="0.017784698">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; records a win correctly" time="0.005471616">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; records a loss correctly" time="0.003036098">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; tracks best round across multiple wins" time="0.003696508">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; calculates win rate correctly" time="0.002588856">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; persists to localStorage" time="0.002038331">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; loads persisted stats on mount" time="0.002402714">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; resetStats clears everything" time="0.002072099">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; handles corrupted localStorage gracefully" time="0.002582341">
+        </testcase>
+        <testcase classname="src/components/game/__tests__/useGameStats.test.ts" name="useGameStats &gt; caps history at 50 entries" time="0.007310717">
+        </testcase>
+    </testsuite>
+</testsuites>
