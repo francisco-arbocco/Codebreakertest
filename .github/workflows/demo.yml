@@ -1,0 +1,96 @@
+# =============================================================================
+# Demo workflow — generates run variety for platform comparison:
+# a slow job, a coin-flip failure, a JUnit file with pass/fail/skip,
+# a job blocked by an upstream failure, and an approval gate.
+# Mirrors the `demo` workflow in .circleci/config.yml.
+# Trigger from the Actions tab: Run workflow.
+# =============================================================================
+name: Demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_slow:
+        description: 'Include the ~90s slow job'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  demo-slow:
+    runs-on: ubuntu-latest
+    if: inputs.include_slow
+    steps:
+      - name: Slow step (~90s, prints every 10s)
+        run: |
+          for i in $(seq 1 9); do
+            echo "tick $i of 9"
+            sleep 10
+          done
+          echo "done"
+
+  demo-random:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Coin flip (fails about half the time)
+        run: |
+          if [ $((RANDOM % 2)) -eq 0 ]; then
+            echo "heads: pass"
+          else
+            echo "tails: fail" >&2
+            exit 1
+          fi
+
+  demo-junit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write a junit file with pass, fail, skip and a slow test
+        run: |
+          mkdir -p test-results
+          cat > test-results/junit-demo.xml <<'XML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <testsuites>
+            <testsuite name="demo.suite" tests="6" failures="1" skipped="1" time="14.1">
+              <testcase classname="demo.GameLogic" name="accepts a valid guess" time="0.12"/>
+              <testcase classname="demo.GameLogic" name="scores a perfect match" time="0.31"/>
+              <testcase classname="demo.GameLogic" name="rejects duplicate digits" time="0.08"/>
+              <testcase classname="demo.Integration" name="full game simulation" time="12.4"/>
+              <testcase classname="demo.GameLogic" name="handles timeout" time="1.2"><failure message="expected 3 got 4" type="AssertionError">AssertionError: expected 3 got 4</failure></testcase>
+              <testcase classname="demo.GameLogic" name="legacy hint mode" time="0"><skipped/></testcase>
+            </testsuite>
+          </testsuites>
+          XML
+          cat test-results/junit-demo.xml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: junit-demo
+          path: test-results/junit-demo.xml
+      - name: Fail on purpose
+        run: |
+          echo "Error: handles timeout failed (expected 3 got 4)" >&2
+          exit 1
+
+  # Never runs: upstream fails. The GHA equivalent of CircleCI's demo-after-fail.
+  demo-after-fail:
+    runs-on: ubuntu-latest
+    needs: [demo-junit]
+    steps:
+      - run: echo "unreachable"
+
+  # Approval gate via environment protection rules.
+  demo-hold:
+    runs-on: ubuntu-latest
+    needs: [demo-random]
+    environment:
+      name: demo-approval
+    steps:
+      - run: echo "approved"
+
+  demo-final:
+    runs-on: ubuntu-latest
+    needs: [demo-hold]
+    steps:
+      - run: echo "demo complete"
