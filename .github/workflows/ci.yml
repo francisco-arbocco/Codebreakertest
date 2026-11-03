@@ -222,6 +222,9 @@ jobs:
     needs: [unit-tests, component-tests, integration-tests]
     if: always()
     steps:
+      # Required: dorny/test-reporter runs `git ls-files` to map test paths to
+      # repo files, so the job fails with exit 128 without a checkout.
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           path: all-results
