@@ -5,7 +5,6 @@ version: 2.1
 # =============================================================================
 orbs:
   node: circleci/node@6.1
-  browser-tools: circleci/browser-tools@1.4
 
 # =============================================================================
 # PIPELINE PARAMETERS – trigger specific workflows via API or UI
@@ -18,6 +17,9 @@ parameters:
     type: boolean
     default: false
   run_full_matrix:
+    type: boolean
+    default: false
+  run_demo:
     type: boolean
     default: false
   node_version_override:
@@ -149,6 +151,23 @@ jobs:
     steps:
       - install_deps
       - persist_workspace
+
+  # ---------------------------------------------------------------------------
+  # Orb smoke test – uses the node orb so orb usage shows up in the config
+  # ---------------------------------------------------------------------------
+  orb-smoke:
+    docker:
+      - image: cimg/node:20.12
+    working_directory: ~/project
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+      - run:
+          name: Report versions from orb-installed toolchain
+          command: |
+            echo "Node: $(node --version)"
+            echo "npm:  $(npm --version)"
 
   # ---------------------------------------------------------------------------
   # Static analysis: lint
@@ -530,6 +549,110 @@ jobs:
           name: Release gate passed
           command: echo "Release approved – proceeding with post-release checks"
 
+  # ---------------------------------------------------------------------------
+  # Deploy (simulated). Uses a project env var as a secret: DEPLOY_TOKEN
+  # Add it in project settings > environment variables to test secret masking.
+  # ---------------------------------------------------------------------------
+  deploy:
+    parameters:
+      environment:
+        type: string
+    executor: node-20
+    environment:
+      DEPLOY_TARGET: << parameters.environment >>
+    steps:
+      - attach_workspace_step
+      - run:
+          name: Check deploy token
+          command: |
+            if [ -z "$DEPLOY_TOKEN" ]; then
+              echo "DEPLOY_TOKEN is not set. Add it as a project env var."
+            else
+              echo "DEPLOY_TOKEN length: ${#DEPLOY_TOKEN}"
+              echo "Printing the token to check log masking: $DEPLOY_TOKEN"
+            fi
+      - run:
+          name: Deploy dist/ to << parameters.environment >> (simulated)
+          command: |
+            echo "Target: $DEPLOY_TARGET"
+            ls dist | head -20
+            sleep 20
+            echo "Deployed to $DEPLOY_TARGET"
+
+  # ---------------------------------------------------------------------------
+  # DEMO jobs – used only by the demo workflow to generate run variety
+  # ---------------------------------------------------------------------------
+  demo-slow:
+    executor: node-20
+    steps:
+      - run:
+          name: Slow step (about 90s, prints every 10s)
+          command: |
+            for i in 1 2 3 4 5 6 7 8 9; do
+              echo "tick $i of 9"
+              sleep 10
+            done
+            echo "done"
+
+  demo-random:
+    executor: node-20
+    steps:
+      - run:
+          name: Coin flip (fails about half the time)
+          command: |
+            echo "flipping"
+            if [ $((RANDOM % 2)) -eq 0 ]; then
+              echo "heads: pass"
+            else
+              echo "tails: fail" >&2
+              exit 1
+            fi
+
+  demo-junit:
+    executor: node-20
+    steps:
+      - run:
+          name: Write a junit file with pass, fail, skip, and a slow test
+          command: |
+            mkdir -p test-results
+            f=test-results/junit-demo.xml
+            echo '<?xml version="1.0" encoding="UTF-8"?>' > $f
+            echo '<testsuites>' >> $f
+            echo '  <testsuite name="demo.suite" tests="6" failures="1" skipped="1" time="14.1">' >> $f
+            echo '    <testcase classname="demo.GameLogic" name="accepts a valid guess" time="0.12"/>' >> $f
+            echo '    <testcase classname="demo.GameLogic" name="scores a perfect match" time="0.31"/>' >> $f
+            echo '    <testcase classname="demo.GameLogic" name="rejects duplicate digits" time="0.08"/>' >> $f
+            echo '    <testcase classname="demo.Integration" name="full game simulation" time="12.4"/>' >> $f
+            echo '    <testcase classname="demo.GameLogic" name="handles timeout" time="1.2"><failure message="expected 3 got 4" type="AssertionError">AssertionError: expected 3 got 4</failure></testcase>' >> $f
+            echo '    <testcase classname="demo.GameLogic" name="legacy hint mode" time="0"><skipped/></testcase>' >> $f
+            echo '  </testsuite>' >> $f
+            echo '</testsuites>' >> $f
+            cat $f
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+          destination: demo-results
+      - run:
+          name: Fail on purpose
+          command: |
+            echo "Error: handles timeout failed (expected 3 got 4)" >&2
+            exit 1
+
+  demo-after-fail:
+    executor: node-20
+    steps:
+      - run:
+          name: Should never run (upstream fails)
+          command: echo "unreachable"
+
+  demo-final:
+    executor: node-20
+    steps:
+      - run:
+          name: Final step after approval
+          command: echo "demo complete"
+
 # =============================================================================
 # WORKFLOWS
 # =============================================================================
@@ -543,6 +666,7 @@ workflows:
       and:
         - not: << pipeline.parameters.run_flaky >>
         - not: << pipeline.parameters.run_nightly >>
+        - not: << pipeline.parameters.run_demo >>
     jobs:
       # Layer 1: Install & cache
       - setup:
@@ -556,6 +680,8 @@ workflows:
       - typecheck:
           requires: [setup]
       - security-audit:
+          requires: [setup]
+      - orb-smoke:
           requires: [setup]
 
       # Layer 3: Tests (parallel, all depend on setup)
@@ -598,6 +724,17 @@ workflows:
       - bundle-analysis:
           requires: [build-production]
 
+      # Layer 7: Deploy to staging (main only, so other branches skip it)
+      - deploy:
+          name: deploy-staging
+          environment: staging
+          requires:
+            - build-verification
+            - bundle-analysis
+          filters:
+            branches:
+              only: main
+
   # ---------------------------------------------------------------------------
   # FLAKY INVESTIGATION – triggered via pipeline parameter
   # ---------------------------------------------------------------------------
@@ -615,16 +752,11 @@ workflows:
   nightly:
     when: << pipeline.parameters.run_nightly >>
     jobs:
-      # Full matrix across Node versions
+      # Full matrix across Node versions (native matrix)
       - cross-version-test:
-          name: test-node-18
-          node_executor: node-18
-      - cross-version-test:
-          name: test-node-20
-          node_executor: node-20
-      - cross-version-test:
-          name: test-node-22
-          node_executor: node-22
+          matrix:
+            parameters:
+              node_executor: [node-18, node-20, node-22]
 
       # Install benchmark
       - install-benchmark
@@ -665,7 +797,7 @@ workflows:
           requires: [setup]
 
   # ---------------------------------------------------------------------------
-  # RELEASE – tag-triggered with manual approval gate
+  # RELEASE – tag-triggered with manual approval gate, then production deploy
   # ---------------------------------------------------------------------------
   release:
     jobs:
@@ -746,19 +878,42 @@ workflows:
               only: /^v\d+\.\d+\.\d+.*/
             branches:
               ignore: /.*/
+      - deploy:
+          name: deploy-production
+          environment: production
+          requires: [approve-release]
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+.*/
+            branches:
+              ignore: /.*/
 
   # ---------------------------------------------------------------------------
-  # FULL MATRIX – cross-version testing on demand
+  # FULL MATRIX – cross-version testing on demand (native matrix)
   # ---------------------------------------------------------------------------
   full_matrix:
     when: << pipeline.parameters.run_full_matrix >>
     jobs:
       - cross-version-test:
-          name: matrix-node-18
-          node_executor: node-18
-      - cross-version-test:
-          name: matrix-node-20
-          node_executor: node-20
-      - cross-version-test:
-          name: matrix-node-22
-          node_executor: node-22
+          matrix:
+            parameters:
+              node_executor: [node-18, node-20, node-22]
+
+  # ---------------------------------------------------------------------------
+  # DEMO – run variety: slow job, random failure, junit with a failed test,
+  # a job blocked by a failure, and an approval gate.
+  # Trigger with pipeline parameter run_demo=true
+  # ---------------------------------------------------------------------------
+  demo:
+    when: << pipeline.parameters.run_demo >>
+    jobs:
+      - demo-slow
+      - demo-random
+      - demo-junit
+      - demo-after-fail:
+          requires: [demo-junit]
+      - demo-hold:
+          type: approval
+          requires: [demo-slow]
+      - demo-final:
+          requires: [demo-hold]
