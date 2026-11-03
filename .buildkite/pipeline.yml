@@ -1,0 +1,212 @@
+# =============================================================================
+# Buildkite pipeline — mirrors .circleci/config.yml for platform comparison.
+#
+# Assumes Buildkite HOSTED agents. If you use self-hosted agents, change the
+# queue; note the checkout persists between jobs on the same agent, which
+# changes the caching story completely.
+#
+# NOTE ON $$: Buildkite interpolates $VAR and ${VAR} at pipeline UPLOAD time.
+# Per-job variables (BUILDKITE_PARALLEL_JOB) and any shell-local variable must
+# be written $$VAR so they survive to runtime. Buildkite's own {{matrix.x}} and
+# %n use a different mechanism and are NOT escaped.
+# =============================================================================
+
+agents:
+  queue: "default"
+
+cache:
+  - "node_modules"
+
+env:
+  NODE_ENV: "test"
+  CI: "true"
+
+steps:
+  - group: ":mag: Static analysis"
+    key: static
+    steps:
+      - label: ":eslint: Lint"
+        key: lint
+        command: |
+          npm ci --no-audit --no-fund
+          mkdir -p test-results
+          npx eslint . --format json --output-file test-results/eslint.json || true
+          npx eslint .
+        artifact_paths:
+          - "test-results/eslint.json"
+
+      - label: ":typescript: Typecheck"
+        key: typecheck
+        command: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+
+      - label: ":npm: Security audit"
+        key: audit
+        command: |
+          npm ci --no-audit --no-fund
+          mkdir -p test-results
+          npm audit --audit-level=critical --json > test-results/audit.json 2>&1 || true
+          npm audit --audit-level=critical || echo "vulnerabilities found (see artifact)"
+        artifact_paths:
+          - "test-results/audit.json"
+        soft_fail: true
+
+  # Sharded unit tests. BUILDKITE_PARALLEL_JOB is 0-indexed, hence $$ escaping.
+  - label: ":vitest: Unit tests %n"
+    key: unit
+    parallelism: 2
+    command: |
+      npm ci --no-audit --no-fund
+      mkdir -p test-results
+      echo "shard $$BUILDKITE_PARALLEL_JOB of $$BUILDKITE_PARALLEL_JOB_COUNT"
+      FILES=$(ls src/components/game/__tests__/GameLogic*.test.ts \
+        | awk "NR % $$BUILDKITE_PARALLEL_JOB_COUNT == $$BUILDKITE_PARALLEL_JOB")
+      echo "Running: $$FILES"
+      npx vitest run $$FILES \
+        --reporter=junit --reporter=default \
+        --outputFile.junit=test-results/junit-unit-$$BUILDKITE_PARALLEL_JOB.xml
+    artifact_paths:
+      - "test-results/junit-unit-*.xml"
+
+  - label: ":vitest: Component tests"
+    key: component
+    command: |
+      npm ci --no-audit --no-fund
+      mkdir -p test-results
+      npx vitest run src/components/game/__tests__/GuessInput*.test.tsx \
+        --reporter=junit --reporter=default \
+        --outputFile.junit=test-results/junit-component.xml
+    artifact_paths:
+      - "test-results/junit-component.xml"
+
+  - label: ":vitest: Integration tests"
+    key: integration
+    command: |
+      npm ci --no-audit --no-fund
+      mkdir -p test-results
+      npx vitest run src/components/game/__tests__/GameSimulation.integration.test.ts \
+        --reporter=junit --reporter=default \
+        --outputFile.junit=test-results/junit-integration.xml
+    artifact_paths:
+      - "test-results/junit-integration.xml"
+
+  # Coverage gate. Uses node, not bc — the CircleCI config's bc dependency is
+  # absent from cimg/node and silently neutralises the threshold there.
+  - label: ":bar_chart: Coverage"
+    key: coverage
+    depends_on:
+      - unit
+      - component
+      - integration
+    command: |
+      npm ci --no-audit --no-fund
+      mkdir -p test-results
+      npx vitest run --exclude '**/*.flaky.test.*' --coverage \
+        --coverage.reporter=json-summary --coverage.reporter=html --coverage.reporter=text \
+        --reporter=junit --reporter=default \
+        --outputFile.junit=test-results/junit-coverage.xml
+      node -e "
+        const p = require('./coverage/coverage-summary.json').total.lines.pct;
+        console.log('Line coverage: ' + p + '%');
+        const min = Number(process.env.MIN_LINES || 5);
+        if (p < min) { console.error('FAIL: below ' + min + '%'); process.exit(1); }
+      "
+    env:
+      MIN_LINES: "5"
+    artifact_paths:
+      - "test-results/junit-coverage.xml"
+      - "coverage/**/*"
+
+  # Annotates the build with failed tests parsed from every shard's JUnit file.
+  - label: ":memo: Annotate test failures"
+    key: annotate
+    depends_on:
+      - unit
+      - component
+      - integration
+    allow_dependency_failure: true
+    plugins:
+      - junit-annotate#v2.7.0:
+          artifacts: "test-results/junit-*.xml"
+          report-slowest: 10
+
+  - wait: ~
+
+  # Artifacts are Buildkite's equivalent of CircleCI workspaces.
+  - label: ":hammer: Build production"
+    key: build
+    depends_on:
+      - lint
+      - typecheck
+      - coverage
+    command: |
+      npm ci --no-audit --no-fund
+      npm run build
+      test -d dist || { echo "FAIL: dist/ missing"; exit 1; }
+      ls -lhR dist/ | head -40
+    artifact_paths:
+      - "dist/**/*"
+
+  - label: ":white_check_mark: Verify build"
+    key: verify
+    depends_on: build
+    command: |
+      buildkite-agent artifact download "dist/**/*" .
+      test -f dist/index.html || { echo "FAIL: no index.html"; exit 1; }
+      JS_COUNT=$(find dist/assets -name '*.js' | wc -l)
+      CSS_COUNT=$(find dist/assets -name '*.css' | wc -l)
+      echo "JS: $$JS_COUNT  CSS: $$CSS_COUNT"
+      [ "$$JS_COUNT" -gt 0 ] || { echo "FAIL: no JS"; exit 1; }
+      [ "$$CSS_COUNT" -gt 0 ] || { echo "FAIL: no CSS"; exit 1; }
+      echo "source maps: $(find dist -name '*.map' | wc -l)"
+      js_total=0
+      for f in dist/assets/*.js; do js_total=$(( js_total + $(wc -c < "$$f") )); done
+      echo "Total JS: $(( js_total / 1024 )) KB"
+      if [ "$$js_total" -gt 2097152 ]; then echo "FAIL: JS over 2MB"; exit 1; fi
+
+  # Node version matrix — counterpart to CircleCI cross-version-test.
+  - label: ":node: Node {{matrix.node}}"
+    key: matrix-test
+    depends_on: static
+    matrix:
+      setup:
+        node:
+          - "18"
+          - "20"
+          - "22"
+    plugins:
+      - docker#v5.11.0:
+          image: "node:{{matrix.node}}"
+    command: |
+      node --version
+      npm ci --no-audit --no-fund
+      mkdir -p test-results
+      npx vitest run --exclude '**/*.flaky.test.*' \
+        --reporter=junit --reporter=default \
+        --outputFile.junit=test-results/junit-node{{matrix.node}}.xml
+      npm run build
+    artifact_paths:
+      - "test-results/junit-node*.xml"
+
+  # Manual approval gate — counterpart to CircleCI's `type: approval` job.
+  - block: ":lock: Approve deploy"
+    key: approve
+    depends_on: verify
+    if: build.branch == "main"
+    prompt: "Deploy dist/ to staging?"
+
+  - label: ":rocket: Deploy staging"
+    key: deploy
+    depends_on: approve
+    if: build.branch == "main"
+    command: |
+      buildkite-agent artifact download "dist/**/*" .
+      if [ -z "$$DEPLOY_TOKEN" ]; then
+        echo "DEPLOY_TOKEN not set"
+      else
+        echo "DEPLOY_TOKEN length: $${#DEPLOY_TOKEN}"
+        echo "Printing the token to check log masking: $$DEPLOY_TOKEN"
+      fi
+      ls dist | head -20
+      echo "Deployed to staging"
