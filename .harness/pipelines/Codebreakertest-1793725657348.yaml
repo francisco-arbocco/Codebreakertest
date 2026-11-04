@@ -30,7 +30,14 @@ pipeline:
                   identifier: test
                   name: test
                   spec:
-                    command: npm run test
+                    command: |-
+                      mkdir -p test-results
+                      npm run test
+                    reports:
+                      type: JUnit
+                      spec:
+                        paths:
+                          - test-results/junit.xml
                   timeout: ""
                   type: Run
               - step:
