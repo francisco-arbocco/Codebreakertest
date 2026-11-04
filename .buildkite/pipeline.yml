@@ -117,6 +117,7 @@ steps:
     artifact_paths:
       - "test-results/junit-coverage.xml"
       - "coverage/**/*"
+      - "coverage/*"
 
   # Annotates the build with failed tests parsed from every shard's JUnit file.
   - label: ":memo: Annotate test failures"
@@ -147,6 +148,7 @@ steps:
       ls -lhR dist/ | head -40
     artifact_paths:
       - "dist/**/*"
+      - "dist/*"
 
   - label: ":white_check_mark: Verify build"
     key: verify
