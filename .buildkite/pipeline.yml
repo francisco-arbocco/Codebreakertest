@@ -154,6 +154,7 @@ steps:
     key: verify
     depends_on: build
     command: |
+      buildkite-agent artifact download "dist/*" .
       buildkite-agent artifact download "dist/**/*" .
       test -f dist/index.html || { echo "FAIL: no index.html"; exit 1; }
       JS_COUNT=$(find dist/assets -name '*.js' | wc -l)
@@ -203,6 +204,7 @@ steps:
     depends_on: approve
     if: build.branch == "main"
     command: |
+      buildkite-agent artifact download "dist/*" .
       buildkite-agent artifact download "dist/**/*" .
       if [ -z "$$DEPLOY_TOKEN" ]; then
         echo "DEPLOY_TOKEN not set"
