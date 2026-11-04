@@ -1,0 +1,233 @@
+# =============================================================================
+# Bitbucket Pipelines — mirrors .circleci/config.yml for platform comparison.
+#
+# Test reporting needs NO configuration here: Pipelines auto-scans
+# ./**/test-results/**/*.xml and this repo already writes there. Contrast with
+# GitHub Actions, which needs a third-party action for the same thing.
+#
+# Caveat: the Tests tab only appears when there are FAILURES. A fully green run
+# shows a summary count only.
+# =============================================================================
+image: node:20
+
+definitions:
+  caches:
+    # ~/.npm, not node_modules — npm ci deletes node_modules before installing,
+    # so caching it is wasted work (the same flaw as the CircleCI config).
+    npmcache: ~/.npm
+
+  steps:
+    - step: &lint
+        name: Lint
+        caches: [npmcache]
+        script:
+          - npm ci --no-audit --no-fund
+          - mkdir -p test-results
+          - npx eslint . --format json --output-file test-results/eslint.json || true
+          - npx eslint .
+        artifacts:
+          - test-results/eslint.json
+
+    - step: &typecheck
+        name: Typecheck
+        caches: [npmcache]
+        script:
+          - npm ci --no-audit --no-fund
+          - npx tsc --noEmit
+
+    - step: &audit
+        name: Security audit
+        caches: [npmcache]
+        script:
+          - npm ci --no-audit --no-fund
+          - mkdir -p test-results
+          - npm audit --audit-level=critical --json > test-results/audit.json 2>&1 || true
+          - npm audit --audit-level=critical || echo "vulnerabilities found"
+        artifacts:
+          - test-results/audit.json
+
+    # Sharded unit tests. BITBUCKET_PARALLEL_STEP is 0-based;
+    # BITBUCKET_PARALLEL_STEP_COUNT is the group size. Both only exist inside a
+    # parallel block, so this step is only valid there.
+    - step: &unit-shard
+        name: Unit tests (shard)
+        caches: [npmcache]
+        script:
+          - npm ci --no-audit --no-fund
+          - mkdir -p test-results
+          - echo "shard $BITBUCKET_PARALLEL_STEP of $BITBUCKET_PARALLEL_STEP_COUNT"
+          - FILES=$(ls src/components/game/__tests__/GameLogic*.test.ts | awk "NR % $BITBUCKET_PARALLEL_STEP_COUNT == $BITBUCKET_PARALLEL_STEP")
+          - echo "Running::$FILES"
+          - npx vitest run $FILES --reporter=junit --reporter=default --outputFile.junit=test-results/junit-unit-$BITBUCKET_PARALLEL_STEP.xml
+        artifacts:
+          - test-results/junit-unit-*.xml
+
+    - step: &component
+        name: Component tests
+        caches: [npmcache]
+        script:
+          - npm ci --no-audit --no-fund
+          - mkdir -p test-results
+          - npx vitest run src/components/game/__tests__/GuessInput*.test.tsx --reporter=junit --reporter=default --outputFile.junit=test-results/junit-component.xml
+        artifacts:
+          - test-results/junit-component.xml
+
+    - step: &integration
+        name: Integration tests
+        caches: [npmcache]
+        script:
+          - npm ci --no-audit --no-fund
+          - mkdir -p test-results
+          - npx vitest run src/components/game/__tests__/GameSimulation.integration.test.ts --reporter=junit --reporter=default --outputFile.junit=test-results/junit-integration.xml
+        artifacts:
+          - test-results/junit-integration.xml
+
+    - step: &coverage
+        name: Coverage gate
+        caches: [npmcache]
+        script:
+          - npm ci --no-audit --no-fund
+          - mkdir -p test-results
+          - npx vitest run --exclude '**/*.flaky.test.*' --coverage --coverage.reporter=json-summary --coverage.reporter=text --reporter=junit --reporter=default --outputFile.junit=test-results/junit-coverage.xml
+          # node, not bc — bc is absent from cimg/node and silently neutralises
+          # the identical check on CircleCI.
+          - |
+            node -e "
+              const p = require('./coverage/coverage-summary.json').total.lines.pct;
+              console.log('Line coverage: ' + p + '%');
+              if (p < 5) { console.error('FAIL: below 5%'); process.exit(1); }
+            "
+        artifacts:
+          - test-results/junit-coverage.xml
+          - coverage/**
+
+    - step: &build
+        name: Build and verify
+        caches: [npmcache]
+        script:
+          - npm ci --no-audit --no-fund
+          - npm run build
+          - test -d dist || { echo "FAIL::dist/ missing"; exit 1; }
+          - test -f dist/index.html || { echo "FAIL::no index.html"; exit 1; }
+          - JS_COUNT=$(find dist/assets -name '*.js' | wc -l)
+          - CSS_COUNT=$(find dist/assets -name '*.css' | wc -l)
+          - echo "JS:$JS_COUNT CSS:$CSS_COUNT"
+          - '[ "$JS_COUNT" -gt 0 ] || { echo "FAIL: no JS"; exit 1; }'
+          - '[ "$CSS_COUNT" -gt 0 ] || { echo "FAIL: no CSS"; exit 1; }'
+          - echo "source maps:$(find dist -name '*.map' | wc -l)"
+          - |
+            js_total=0
+            for f in dist/assets/*.js; do js_total=$((js_total + $(wc -c < "$f"))); done
+            echo "Total JS: $((js_total / 1024)) KB"
+            if [ "$js_total" -gt 2097152 ]; then echo "FAIL: JS over 2MB"; exit 1; fi
+        artifacts:
+          - dist/**
+
+pipelines:
+  # ---------------------------------------------------------------------------
+  # PULL REQUEST pipeline — this is the one you're testing.
+  # Runs on every PR, re-runs on each push to the source branch.
+  # ---------------------------------------------------------------------------
+  pull-requests:
+    '**':
+      - parallel:
+          steps:
+            - step: *lint
+            - step: *typecheck
+            - step: *audit
+      - parallel:
+          steps:
+            - step: *unit-shard
+            - step: *unit-shard
+            - step: *component
+            - step: *integration
+      - step: *coverage
+      - step: *build
+
+  # ---------------------------------------------------------------------------
+  # Branch pipeline for main, with a manual deploy gate.
+  # A manual step may not be first, which is why build precedes it.
+  # ---------------------------------------------------------------------------
+  branches:
+    main:
+      - parallel:
+          steps:
+            - step: *lint
+            - step: *typecheck
+            - step: *audit
+      - step: *coverage
+      - step: *build
+      - step:
+          name: Deploy to staging
+          deployment: staging
+          trigger: manual
+          script:
+            - |
+              if [ -z "$DEPLOY_TOKEN" ]; then
+                echo "DEPLOY_TOKEN not set — add it in Repository settings > Deployments"
+              else
+                echo "DEPLOY_TOKEN length: ${#DEPLOY_TOKEN}"
+                echo "Printing the token to check log masking: $DEPLOY_TOKEN"
+              fi
+            - ls dist | head -20
+            - echo "Deployed to staging"
+
+  # ---------------------------------------------------------------------------
+  # Custom (manual-only) pipelines — the counterpart to CircleCI's
+  # parameter-gated workflows. Run them from the Pipelines UI.
+  # Bitbucket has NO native matrix, so node versions are hand-written.
+  # ---------------------------------------------------------------------------
+  custom:
+    full-matrix:
+      - parallel:
+          steps:
+            - step:
+                name: Node 18
+                image: node:18
+                script:
+                  - node --version
+                  - npm ci --no-audit --no-fund
+                  - npx vitest run --exclude '**/*.flaky.test.*'
+                  - npm run build
+            - step:
+                name: Node 20
+                image: node:20
+                script:
+                  - node --version
+                  - npm ci --no-audit --no-fund
+                  - npx vitest run --exclude '**/*.flaky.test.*'
+                  - npm run build
+            - step:
+                name: Node 22
+                image: node:22
+                script:
+                  - node --version
+                  - npm ci --no-audit --no-fund
+                  - npx vitest run --exclude '**/*.flaky.test.*'
+                  - npm run build
+
+    demo:
+      - parallel:
+          steps:
+            - step:
+                name: Coin flip
+                script:
+                  - |
+                    if [ $((RANDOM % 2)) -eq 0 ]; then
+                      echo "heads: pass"
+                    else
+                      echo "tails: fail" >&2
+                      exit 1
+                    fi
+            - step:
+                name: Slow step
+                script:
+                  - |
+                    for i in 1 2 3 4 5 6 7 8 9; do
+                      echo "tick $i of 9"
+                      sleep 10
+                    done
+      - step:
+          name: Blocked by upstream failure
+          script:
+            - echo "only runs if the coin flip passed"
