@@ -17,33 +17,19 @@ definitions:
     npmcache: ~/.npm
 
   steps:
-    - step: &lint
-        name: Lint
+    - step: &static
+        name: Static analysis (lint + typecheck + audit)
         caches: [npmcache]
         script:
           - npm ci --no-audit --no-fund
           - mkdir -p test-results
           - npx eslint . --format json --output-file test-results/eslint.json || true
           - npx eslint .
-        artifacts:
-          - test-results/eslint.json
-
-    - step: &typecheck
-        name: Typecheck
-        caches: [npmcache]
-        script:
-          - npm ci --no-audit --no-fund
           - npx tsc --noEmit
-
-    - step: &audit
-        name: Security audit
-        caches: [npmcache]
-        script:
-          - npm ci --no-audit --no-fund
-          - mkdir -p test-results
           - npm audit --audit-level=critical --json > test-results/audit.json 2>&1 || true
           - npm audit --audit-level=critical || echo "vulnerabilities found"
         artifacts:
+          - test-results/eslint.json
           - test-results/audit.json
 
     # Sharded unit tests. BITBUCKET_PARALLEL_STEP is 0-based;
@@ -130,11 +116,7 @@ pipelines:
   # ---------------------------------------------------------------------------
   pull-requests:
     '**':
-      - parallel:
-          steps:
-            - step: *lint
-            - step: *typecheck
-            - step: *audit
+      - step: *static
       - parallel:
           steps:
             - step: *unit-shard
@@ -150,11 +132,7 @@ pipelines:
   # ---------------------------------------------------------------------------
   branches:
     main:
-      - parallel:
-          steps:
-            - step: *lint
-            - step: *typecheck
-            - step: *audit
+      - step: *static
       - step: *coverage
       - step: *build
       - step:
