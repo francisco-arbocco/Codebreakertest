@@ -136,7 +136,7 @@ blocks:
   - name: Node matrix
     dependencies: ["Static analysis"]
     run:
-      when: "branch = 'main' or change_in('/.semaphore/')"
+      when: "branch = 'main' or change_in('/.semaphore/', {default_branch: 'main'})"
     task:
       jobs:
         - name: Node
