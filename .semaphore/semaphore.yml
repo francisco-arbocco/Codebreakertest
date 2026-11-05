@@ -64,7 +64,7 @@ blocks:
       epilogue:
         always:
           commands:
-            - test-results publish test-results/ || true
+            - if ls test-results/junit-*.xml >/dev/null 2>&1; then test-results publish test-results/junit-*.xml; fi
       jobs:
         - name: Unit tests
           parallelism: 2
@@ -90,7 +90,7 @@ blocks:
       epilogue:
         always:
           commands:
-            - test-results publish test-results/ || true
+            - if ls test-results/junit-*.xml >/dev/null 2>&1; then test-results publish test-results/junit-*.xml; fi
       jobs:
         - name: Coverage gate
           commands:
