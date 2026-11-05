@@ -10,7 +10,7 @@ name: Codebreakertest CI
 
 agent:
   machine:
-    type: e1-standard-2
+    type: f1-standard-2
     os_image: ubuntu2404
 
 # Auto-cancel superseded runs on non-default branches
