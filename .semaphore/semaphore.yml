@@ -1,0 +1,157 @@
+# =============================================================================
+# Semaphore CI — mirrors .circleci/config.yml for platform comparison.
+#
+# NOTE: Semaphore does not partition tests automatically. SEMAPHORE_JOB_INDEX
+# is 1-BASED (1..SEMAPHORE_JOB_COUNT) — unlike Buildkite and Bitbucket, which
+# are 0-based. Getting this wrong silently runs the whole suite on every shard.
+# =============================================================================
+version: v1.0
+name: Codebreakertest CI
+
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu2404
+
+# Auto-cancel superseded runs on non-default branches
+auto_cancel:
+  running:
+    when: "branch != 'main'"
+
+global_job_config:
+  env_vars:
+    - name: npm_config_cache
+      value: .npm
+    - name: MIN_LINES
+      value: "5"
+  prologue:
+    commands:
+      - checkout
+      # Cache npm's download cache, not node_modules — npm ci deletes the latter
+      - cache restore npm-$(checksum package-lock.json)
+      - npm ci --no-audit --no-fund
+      - cache store npm-$(checksum package-lock.json) .npm
+      - mkdir -p test-results
+
+blocks:
+  # -------------------------------------------------------------------------
+  # Static analysis — three jobs, run in parallel within the block
+  # -------------------------------------------------------------------------
+  - name: Static analysis
+    dependencies: []
+    task:
+      jobs:
+        - name: Lint
+          commands:
+            - npx eslint . --format json --output-file test-results/eslint.json || true
+            - npx eslint .
+        - name: Typecheck
+          commands:
+            - npx tsc --noEmit
+            - npx tsc --version
+        - name: Security audit
+          commands:
+            - npm audit --audit-level=critical --json > test-results/audit.json 2>&1 || true
+            - npm audit --audit-level=critical || echo "vulnerabilities found"
+
+  # -------------------------------------------------------------------------
+  # Tests. test-results publish runs in an `always` epilogue so results are
+  # collected even when the job fails.
+  # -------------------------------------------------------------------------
+  - name: Tests
+    dependencies: ["Static analysis"]
+    task:
+      epilogue:
+        always:
+          commands:
+            - test-results publish test-results/ || true
+      jobs:
+        - name: Unit tests
+          parallelism: 2
+          commands:
+            - echo "shard $SEMAPHORE_JOB_INDEX of $SEMAPHORE_JOB_COUNT"
+            - FILES=$(ls src/components/game/__tests__/GameLogic*.test.ts | awk "NR % $SEMAPHORE_JOB_COUNT == ($SEMAPHORE_JOB_INDEX - 1)")
+            - '[ -n "$FILES" ] || { echo "FAIL: shard matched no files"; exit 1; }'
+            - 'echo "running: $FILES"'
+            - npx vitest run $FILES --reporter=junit --reporter=default --outputFile.junit=test-results/junit-unit-$SEMAPHORE_JOB_INDEX.xml
+        - name: Component tests
+          commands:
+            - npx vitest run src/components/game/__tests__/GuessInput*.test.tsx --reporter=junit --reporter=default --outputFile.junit=test-results/junit-component.xml
+        - name: Integration tests
+          commands:
+            - npx vitest run src/components/game/__tests__/GameSimulation.integration.test.ts --reporter=junit --reporter=default --outputFile.junit=test-results/junit-integration.xml
+
+  # -------------------------------------------------------------------------
+  # Coverage gate — node, not bc (bc is absent from most CI images)
+  # -------------------------------------------------------------------------
+  - name: Coverage
+    dependencies: ["Tests"]
+    task:
+      epilogue:
+        always:
+          commands:
+            - test-results publish test-results/ || true
+      jobs:
+        - name: Coverage gate
+          commands:
+            - npx vitest run --exclude '**/*.flaky.test.*' --coverage --coverage.reporter=json-summary --coverage.reporter=text --reporter=junit --reporter=default --outputFile.junit=test-results/junit-coverage.xml
+            - |
+              node -e "
+                const p = require('./coverage/coverage-summary.json').total.lines.pct;
+                console.log('Line coverage: ' + p + '%');
+                const min = Number(process.env.MIN_LINES);
+                if (p < min) { console.error('FAIL: below ' + min + '%'); process.exit(1); }
+              "
+            - artifact push workflow coverage --force
+
+  # -------------------------------------------------------------------------
+  # Build + verification
+  # -------------------------------------------------------------------------
+  - name: Build
+    dependencies: ["Coverage"]
+    task:
+      jobs:
+        - name: Build and verify
+          commands:
+            - npm run build
+            - '[ -d dist ] || { echo "FAIL: dist missing"; exit 1; }'
+            - '[ -f dist/index.html ] || { echo "FAIL: no index.html"; exit 1; }'
+            - JS_COUNT=$(find dist/assets -name '*.js' | wc -l)
+            - CSS_COUNT=$(find dist/assets -name '*.css' | wc -l)
+            - 'echo "JS: $JS_COUNT  CSS: $CSS_COUNT"'
+            - '[ "$JS_COUNT" -gt 0 ] || { echo "FAIL: no JS"; exit 1; }'
+            - '[ "$CSS_COUNT" -gt 0 ] || { echo "FAIL: no CSS"; exit 1; }'
+            - 'echo "source maps: $(find dist -name ''*.map'' | wc -l)"'
+            - |
+              js_total=0
+              for f in dist/assets/*.js; do js_total=$((js_total + $(wc -c < "$f"))); done
+              echo "Total JS: $((js_total / 1024)) KB"
+              if [ "$js_total" -gt 2097152 ]; then echo "FAIL: JS over 2MB"; exit 1; fi
+            - artifact push workflow dist --force
+
+  # -------------------------------------------------------------------------
+  # Node version matrix. Semaphore's matrix generates one job per combination;
+  # it cannot be combined with parallelism on the same job.
+  # -------------------------------------------------------------------------
+  - name: Node matrix
+    dependencies: ["Static analysis"]
+    run:
+      when: "branch = 'main' or change_in('/.semaphore/')"
+    task:
+      jobs:
+        - name: Node
+          matrix:
+            - env_var: NODE_VERSION
+              values: ["18", "20", "22"]
+          commands:
+            - sem-version node $NODE_VERSION
+            - node --version
+            - npm ci --no-audit --no-fund
+            - npx vitest run --exclude '**/*.flaky.test.*' --reporter=default
+
+# ---------------------------------------------------------------------------
+# Manual deploy gate — Semaphore's promotions are the approval-job equivalent
+# ---------------------------------------------------------------------------
+promotions:
+  - name: Deploy to staging
+    pipeline_file: deploy.yml

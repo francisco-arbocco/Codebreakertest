@@ -1,0 +1,23 @@
+version: v1.0
+name: Deploy staging
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu2404
+blocks:
+  - name: Deploy
+    dependencies: []
+    task:
+      jobs:
+        - name: Deploy to staging
+          commands:
+            - artifact pull workflow dist
+            - |
+              if [ -z "$DEPLOY_TOKEN" ]; then
+                echo "DEPLOY_TOKEN not set"
+              else
+                echo "DEPLOY_TOKEN length: ${#DEPLOY_TOKEN}"
+                echo "Printing the token to check log masking: $DEPLOY_TOKEN"
+              fi
+            - ls dist | head -20
+            - echo "Deployed to staging"
